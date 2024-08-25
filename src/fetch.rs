@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use crate::models;
 
-const START_BLOCK_ID: i32 = 27931401;
-const END_BLOCK_ID: i32 = 27955401;
+const START_BLOCK_ID: i32 = 27961401;
+const END_BLOCK_ID: i32 = 27965401;
 const BLOCK_INCREMENT: i32 = 100;
 
 pub async fn fetch_data_and_broadcast(tx: broadcast::Sender<String>, collection: Collection<Document>) {
