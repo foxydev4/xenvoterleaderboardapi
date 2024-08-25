@@ -2,18 +2,18 @@ use warp::Filter;
 use mongodb::{Collection, bson::{doc, Document}};
 use warp::reply::{json, with_status};
 use serde_json::json;
-use log::{error};
+use log::{error, info};
 use std::collections::HashMap;
 use futures_util::StreamExt;
-use crate::models::Block;
+use crate::models::{Block, Entry, FinalHash};
 
-pub fn get_pubkey_counts_in_range(
+pub fn get_blocks_in_range(
     collection: Collection<Document>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path!("pubkeys" / u32 / u32)
+    warp::path!("blocks" / i32 / i32)
         .and(warp::get())
         .and(with_collection(collection))
-        .and_then(handle_get_pubkey_counts_in_range)
+        .and_then(handle_get_blocks_in_range)
 }
 
 fn with_collection(
@@ -22,24 +22,31 @@ fn with_collection(
     warp::any().map(move || collection.clone())
 }
 
-async fn handle_get_pubkey_counts_in_range(
-    start_block_id: u32,
-    end_block_id: u32,
+async fn handle_get_blocks_in_range(
+    start_id: i32,
+    end_id: i32,
     collection: Collection<Document>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // Ensure the end block ID is greater than or equal to the start block ID
-    if end_block_id < start_block_id {
-        let bad_request_reply = json(&json!({"error": "End block ID must be greater than or equal to start block ID"}));
-        return Ok(with_status(bad_request_reply, warp::http::StatusCode::BAD_REQUEST));
+    if start_id > end_id {
+        return Ok(with_status(
+            json(&json!({"error": "Invalid range: start_id is greater than end_id"})),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
     }
 
-    let filter = doc! { "block_id": { "$gte": start_block_id, "$lte": end_block_id } };
+    let filter = doc! {
+        "blockId": { "$gte": start_id, "$lte": end_id }
+    };
+
+    info!("Querying MongoDB with filter: {:?}", filter);
+
     match collection.find(filter, None).await {
         Ok(mut cursor) => {
             let mut pubkey_counts: HashMap<String, u32> = HashMap::new();
             while let Some(result) = cursor.next().await {
                 match result {
                     Ok(document) => {
+                        info!("Fetched document: {:?}", document);
                         match mongodb::bson::from_document::<Block>(document) {
                             Ok(block) => {
                                 for entry in block.entries {
@@ -61,6 +68,11 @@ async fn handle_get_pubkey_counts_in_range(
                         return Ok(with_status(internal_error_reply, warp::http::StatusCode::INTERNAL_SERVER_ERROR));
                     }
                 }
+            }
+
+            if pubkey_counts.is_empty() {
+                info!("No pubkeys found in the specified range.");
+                return Ok(with_status(json(&json!({"message": "No pubkeys found"})), warp::http::StatusCode::NOT_FOUND));
             }
 
             // Convert the HashMap to a Vec of tuples for sorting

@@ -1,6 +1,6 @@
-
 use tokio::sync::broadcast;
-use mongodb::{Client};
+use mongodb::{Client, IndexModel, options::IndexOptions};
+use mongodb::bson::doc;
 
 mod ws;
 mod models;
@@ -18,6 +18,15 @@ async fn main() {
     let client = Client::with_uri_str(mongo_uri).await.unwrap();
     let db = client.database("block_data");
     let collection = db.collection("blocks");
+
+    // Define the index model
+    let index_model = IndexModel::builder()
+        .keys(doc! { "entries.blockId": 1 })  // Specify the index on the nested blockId field within entries
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    // Create the index
+    collection.create_index(index_model, None).await.unwrap();
 
     // Create a broadcast channel
     let (tx, _rx) = broadcast::channel(100);

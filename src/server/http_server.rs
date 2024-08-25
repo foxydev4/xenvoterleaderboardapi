@@ -2,13 +2,13 @@ use warp::Filter;
 use mongodb::{Collection, bson::Document};
 
 // Import route handlers from the crate root
-use crate::routes::{get_block_by_id, get_all_pubkey_counts, get_pubkey_counts_in_range};
+use crate::routes::{get_block_by_id, get_all_pubkey_counts, get_blocks_in_range};
 
 pub async fn run_http_server(collection: Collection<Document>) {
     // Define the routes for the REST API
     let block_route = get_block_by_id(collection.clone());
     let pubkey_counts_route = get_all_pubkey_counts(collection.clone());
-    let pubkey_ranges = get_pubkey_counts_in_range(collection);
+    let pubkey_ranges = get_blocks_in_range(collection);
 
     // Combine the routes
     let api_routes = block_route
